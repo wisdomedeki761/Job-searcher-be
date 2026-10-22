@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"aj-scraper/internal/model"
+	"qx-scraper/internal/model"
 )
 
 const runColumns = `

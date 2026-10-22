@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"aj-scraper/internal/model"
+	"qx-scraper/internal/model"
 )
 
 // handleListJobs lists recent jobs with optional filters:

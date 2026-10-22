@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"aj-scraper/internal/config"
-	"aj-scraper/internal/model"
+	"qx-scraper/internal/config"
+	"qx-scraper/internal/model"
 )
 
 // SearchRequest carries the parameters of one search run for a source.

@@ -1,4 +1,4 @@
-// Command server is the AJ-Scraper backend entrypoint.
+// Command server is the QX-Scraper backend entrypoint.
 //
 // Boot order:
 //  1. Load config from env / .env
@@ -18,15 +18,15 @@ import (
 	"syscall"
 	"time"
 
-	"aj-scraper/internal/ai"
-	"aj-scraper/internal/api"
-	"aj-scraper/internal/collector"
-	"aj-scraper/internal/config"
-	"aj-scraper/internal/db"
-	"aj-scraper/internal/pipeline"
-	"aj-scraper/internal/scheduler"
-	"aj-scraper/internal/seeder"
-	"aj-scraper/internal/store"
+	"qx-scraper/internal/ai"
+	"qx-scraper/internal/api"
+	"qx-scraper/internal/collector"
+	"qx-scraper/internal/config"
+	"qx-scraper/internal/db"
+	"qx-scraper/internal/pipeline"
+	"qx-scraper/internal/scheduler"
+	"qx-scraper/internal/seeder"
+	"qx-scraper/internal/store"
 )
 
 func main() {

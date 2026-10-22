@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"aj-scraper/internal/model"
+	"qx-scraper/internal/model"
 )
 
 // Mock is an offline source for local development and tests. It emits a small

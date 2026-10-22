@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"aj-scraper/internal/auth"
-	"aj-scraper/internal/config"
-	"aj-scraper/internal/store"
+	"qx-scraper/internal/auth"
+	"qx-scraper/internal/config"
+	"qx-scraper/internal/store"
 )
 
 // SeedSuperAdmin creates the super admin from SUPER_ADMIN_* env vars on first

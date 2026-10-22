@@ -8,11 +8,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"aj-scraper/internal/ai"
-	"aj-scraper/internal/auth"
-	"aj-scraper/internal/model"
-	"aj-scraper/internal/scheduler"
-	"aj-scraper/internal/store"
+	"qx-scraper/internal/ai"
+	"qx-scraper/internal/auth"
+	"qx-scraper/internal/model"
+	"qx-scraper/internal/scheduler"
+	"qx-scraper/internal/store"
 )
 
 // configRequest is the create/update payload for a search config.

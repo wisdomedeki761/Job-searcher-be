@@ -3,7 +3,7 @@ package pipeline
 import (
 	"testing"
 
-	"aj-scraper/internal/model"
+	"qx-scraper/internal/model"
 )
 
 func TestMatchesKeywords(t *testing.T) {

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"aj-scraper/internal/model"
+	"qx-scraper/internal/model"
 )
 
 // apifyBaseURL is a var so tests can point it at an httptest server.

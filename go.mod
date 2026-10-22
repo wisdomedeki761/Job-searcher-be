@@ -1,4 +1,4 @@
-module aj-scraper
+module qx-scraper
 
 go 1.27
 

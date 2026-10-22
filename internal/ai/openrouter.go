@@ -17,7 +17,7 @@ import (
 
 	"github.com/robfig/cron/v3"
 
-	"aj-scraper/internal/model"
+	"qx-scraper/internal/model"
 )
 
 const (
@@ -262,8 +262,8 @@ func (c *Client) doChat(ctx context.Context, system, user string, jsonFormat boo
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-	req.Header.Set("HTTP-Referer", "https://github.com/aj-scraper")
-	req.Header.Set("X-Title", "AJ-Scraper")
+	req.Header.Set("HTTP-Referer", "https://github.com/qx-scraper")
+	req.Header.Set("X-Title", "QX-Scraper")
 
 	resp, err := c.http.Do(req)
 	if err != nil {

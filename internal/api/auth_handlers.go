@@ -3,8 +3,8 @@ package api
 import (
 	"net/http"
 
-	"aj-scraper/internal/auth"
-	"aj-scraper/internal/store"
+	"qx-scraper/internal/auth"
+	"qx-scraper/internal/store"
 )
 
 type loginRequest struct {

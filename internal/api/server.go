@@ -10,12 +10,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"aj-scraper/internal/ai"
-	"aj-scraper/internal/auth"
-	"aj-scraper/internal/collector"
-	"aj-scraper/internal/config"
-	"aj-scraper/internal/scheduler"
-	"aj-scraper/internal/store"
+	"qx-scraper/internal/ai"
+	"qx-scraper/internal/auth"
+	"qx-scraper/internal/collector"
+	"qx-scraper/internal/config"
+	"qx-scraper/internal/scheduler"
+	"qx-scraper/internal/store"
 )
 
 // Server wires dependencies into HTTP handlers.

@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"aj-scraper/internal/ai"
-	"aj-scraper/internal/collector"
-	"aj-scraper/internal/model"
-	"aj-scraper/internal/store"
+	"qx-scraper/internal/ai"
+	"qx-scraper/internal/collector"
+	"qx-scraper/internal/model"
+	"qx-scraper/internal/store"
 )
 
 // Pipeline executes search configs.

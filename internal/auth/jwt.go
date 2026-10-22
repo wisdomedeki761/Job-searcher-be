@@ -37,7 +37,7 @@ func IssueToken(secret string, expiry time.Duration, adminID uuid.UUID, email, r
 			Subject:   adminID.String(),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(expiry)),
-			Issuer:    "aj-scraper",
+			Issuer:    "qx-scraper",
 		},
 	}
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(secret))

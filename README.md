@@ -1,6 +1,6 @@
-# AJ-Scraper — Backend
+# QX-Scraper — Backend
 
-Go backend for the AJ-Scraper job-discovery platform. It stores search
+Go backend for the QX-Scraper job-discovery platform. It stores search
 configurations defined by an admin, enriches them with AI (OpenRouter),
 scrapes job boards on a cron schedule (Apify actors), filters the raw posts
 against the config's keywords, and serves the resulting jobs over a JSON API
@@ -111,8 +111,8 @@ Copy-Item .env.example .env      # then edit .env (see table below)
 # 3. Run
 go run .
 # or build a binary:
-go build -o bin/aj-scraper.exe .
-.\bin\aj-scraper.exe
+go build -o bin/qx-scraper.exe .
+.\bin\qx-scraper.exe
 ```
 
 The server listens on `http://localhost:8080` by default. Health check:
@@ -123,7 +123,7 @@ curl http://localhost:8080/health
 
 > **Note:** SQL migrations are compiled in with `go:embed`. A binary built
 > *before* a migration was added will not know about it — after pulling
-> changes with new migration files, **rebuild** (`go build -o bin/aj-scraper.exe .`).
+> changes with new migration files, **rebuild** (`go build -o bin/qx-scraper.exe .`).
 > `go run .` always re-embeds.
 
 ## Configuration reference
@@ -156,8 +156,8 @@ automatically if present (`godotenv`). Copy `.env.example` → `.env` to start.
 ## Database & migrations
 
 - **Local:** `docker compose up -d` starts PostgreSQL 16 on `localhost:5432`
-  (user/password/db: `postgres`/`postgres`/`aj_scraper`). Then set
-  `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/aj_scraper?sslmode=disable`.
+  (user/password/db: `postgres`/`postgres`/`qx_scraper`). Then set
+  `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/qx_scraper?sslmode=disable`.
 - **Hosted:** paste any Postgres DSN into `DATABASE_URL` (Neon works as-is,
   including the pooler URL with `sslmode=require`).
 - **Migrations** live in `migrations/*.sql`, are applied automatically at

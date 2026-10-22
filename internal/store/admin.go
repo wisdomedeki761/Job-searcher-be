@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"aj-scraper/internal/model"
+	"qx-scraper/internal/model"
 )
 
 // CountSuperAdmins returns how many super admin accounts exist.

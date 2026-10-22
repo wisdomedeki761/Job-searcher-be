@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 
-	"aj-scraper/internal/model"
-	"aj-scraper/internal/pipeline"
-	"aj-scraper/internal/store"
+	"qx-scraper/internal/model"
+	"qx-scraper/internal/pipeline"
+	"qx-scraper/internal/store"
 )
 
 // Scheduler maintains one cron entry per enabled search config.

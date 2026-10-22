@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"aj-scraper/internal/config"
+	"qx-scraper/internal/config"
 )
 
 func testRequest() SearchRequest {

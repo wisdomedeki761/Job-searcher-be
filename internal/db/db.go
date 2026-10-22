@@ -11,7 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"aj-scraper/migrations"
+	"qx-scraper/migrations"
 )
 
 // Connect opens a pgx pool using the given connection string.
