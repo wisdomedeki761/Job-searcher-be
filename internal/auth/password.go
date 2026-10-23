@@ -2,6 +2,7 @@
 package auth
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 
@@ -23,4 +24,22 @@ func HashPassword(plain string) (string, error) {
 // CheckPassword compares a plaintext password against a bcrypt hash.
 func CheckPassword(hash, plain string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain)) == nil
+}
+
+// GeneratePassword returns a random n-character password from crypto/rand.
+// The charset avoids visually ambiguous characters (0/O, 1/l/I) so passwords
+// survive being read out of an email.
+func GeneratePassword(n int) (string, error) {
+	if n < 8 {
+		n = 8
+	}
+	const charset = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%"
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate password: %w", err)
+	}
+	for i := range b {
+		b[i] = charset[int(b[i])%len(charset)]
+	}
+	return string(b), nil
 }
