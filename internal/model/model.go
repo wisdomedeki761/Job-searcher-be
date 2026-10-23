@@ -7,16 +7,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// Admin is a dashboard account. Only the super admin exists in v1.
+// Admin is a dashboard account. The seeded super admin has role
+// "super_admin"; users created by the super admin have role "user" and can
+// either manage search configs (CanManageConfigs) or only view the job feed.
 type Admin struct {
-	ID           uuid.UUID  `json:"id"`
-	Email        string     `json:"email"`
-	Name         string     `json:"name"`
-	Role         string     `json:"role"`
-	LastLoginAt  *time.Time `json:"last_login_at,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
-	PasswordHash string     `json:"-"` // never serialized
+	ID               uuid.UUID  `json:"id"`
+	Email            string     `json:"email"`
+	Name             string     `json:"name"`
+	Role             string     `json:"role"`
+	CanManageConfigs bool       `json:"can_manage_configs"`
+	LastLoginAt      *time.Time `json:"last_login_at,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	PasswordHash     string     `json:"-"` // never serialized
 }
 
 // SearchConfig is an admin-defined job search: a job type, an AI-filled

@@ -14,6 +14,7 @@ import (
 	"qx-scraper/internal/auth"
 	"qx-scraper/internal/collector"
 	"qx-scraper/internal/config"
+	"qx-scraper/internal/mailer"
 	"qx-scraper/internal/scheduler"
 	"qx-scraper/internal/store"
 )
@@ -25,12 +26,13 @@ type Server struct {
 	ai      *ai.Client
 	sources *collector.Registry
 	sched   *scheduler.Scheduler
+	mailer  *mailer.Mailer
 	log     *slog.Logger
 }
 
 // NewServer constructs the API server.
-func NewServer(cfg *config.Config, st *store.Store, aiClient *ai.Client, sources *collector.Registry, sched *scheduler.Scheduler, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, store: st, ai: aiClient, sources: sources, sched: sched, log: log}
+func NewServer(cfg *config.Config, st *store.Store, aiClient *ai.Client, sources *collector.Registry, sched *scheduler.Scheduler, ml *mailer.Mailer, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, store: st, ai: aiClient, sources: sources, sched: sched, mailer: ml, log: log}
 }
 
 // Router builds the chi router with all routes.
@@ -50,28 +52,50 @@ func (s *Server) Router() http.Handler {
 		r.With(auth.Middleware(s.cfg.JWTSecret, false)).Get("/me", s.handleMe)
 	})
 
-	// Public jobs API
+	// Jobs & sources — login required: the whole app is private
 	r.Route("/api", func(r chi.Router) {
+		r.Use(auth.Middleware(s.cfg.JWTSecret, false))
 		r.Get("/jobs", s.handleListJobs)
 		r.Get("/jobs/{id}", s.handleGetJob)
 		r.Get("/sources", s.handleListSources)
 	})
 
-	// Admin dashboard API (super admin only)
+	// Authenticated account area + admin dashboard API
 	r.Route("/api/admin", func(r chi.Router) {
-		r.Use(auth.Middleware(s.cfg.JWTSecret, true))
+		r.Use(auth.Middleware(s.cfg.JWTSecret, false))
 
-		r.Get("/search-configs", s.handleListConfigs)
-		r.Post("/search-configs", s.handleCreateConfig)
-		r.Post("/search-configs/enrich", s.handleEnrich)
-		r.Get("/search-configs/{id}", s.handleGetConfig)
-		r.Put("/search-configs/{id}", s.handleUpdateConfig)
-		r.Delete("/search-configs/{id}", s.handleDeleteConfig)
-		r.Post("/search-configs/{id}/enable", s.handleEnableConfig)
-		r.Post("/search-configs/{id}/disable", s.handleDisableConfig)
-		r.Post("/search-configs/{id}/run", s.handleRunConfig)
-		r.Get("/search-configs/{id}/runs", s.handleConfigRuns)
-		r.Get("/runs", s.handleAllRuns)
+		// Any logged-in user: own profile (email/name/password)
+		r.Put("/profile", s.handleUpdateProfile)
+		r.Put("/profile/password", s.handleChangePassword)
+
+		// Search configs & runs — requires can_manage_configs
+		r.Group(func(r chi.Router) {
+			r.Use(s.requireManage)
+
+			r.Get("/search-configs", s.handleListConfigs)
+			r.Post("/search-configs", s.handleCreateConfig)
+			r.Post("/search-configs/enrich", s.handleEnrich)
+			r.Get("/search-configs/{id}", s.handleGetConfig)
+			r.Put("/search-configs/{id}", s.handleUpdateConfig)
+			r.Delete("/search-configs/{id}", s.handleDeleteConfig)
+			r.Post("/search-configs/{id}/enable", s.handleEnableConfig)
+			r.Post("/search-configs/{id}/disable", s.handleDisableConfig)
+			r.Post("/search-configs/{id}/run", s.handleRunConfig)
+			r.Get("/search-configs/{id}/runs", s.handleConfigRuns)
+			r.Get("/runs", s.handleAllRuns)
+		})
+
+		// User management — super admin only
+		r.Group(func(r chi.Router) {
+			r.Use(s.requireSuper)
+
+			r.Get("/users", s.handleListUsers)
+			r.Post("/users", s.handleCreateUser)
+			r.Get("/users/{id}", s.handleGetUser)
+			r.Put("/users/{id}", s.handleUpdateUser)
+			r.Delete("/users/{id}", s.handleDeleteUser)
+			r.Post("/users/{id}/reset-password", s.handleResetUserPassword)
+		})
 	})
 
 	return r
@@ -120,8 +144,8 @@ func errStatus(err error) int {
 	}
 }
 
-// cors allows all origins: the frontend is separate and public API is read-only.
-// Credentials (JWT) are never sent via cookies, so this is safe for v1.
+// cors allows all origins: the frontend is separate and authenticates with a
+// Bearer token (never cookies), so wildcard CORS is safe here.
 func (s *Server) cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
