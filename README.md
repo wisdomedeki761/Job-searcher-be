@@ -149,6 +149,12 @@ automatically if present (`godotenv`). Copy `.env.example` → `.env` to start.
 | `MOCK_SOURCES` | no | `false` | `true` ⇒ register a local mock source for dev |
 | `TZ` | no | `UTC` | IANA timezone used to interpret cron expressions |
 | `RUN_TIMEOUT` | no | `30m` | Max duration of one run before cancellation |
+| `SMTP_HOST` | no | — | SMTP server for user-invitation emails; empty ⇒ email disabled (credentials returned in the API response instead) |
+| `SMTP_PORT` | no | `587` | STARTTLS port (Gmail app passwords, Mailgun, Postmark, SES SMTP) |
+| `SMTP_USERNAME` | no | — | SMTP auth user (empty ⇒ no auth) |
+| `SMTP_PASSWORD` | no | — | SMTP auth password |
+| `SMTP_FROM` | no | `QX Scraper <no-reply@localhost>` | From header, `Name <addr>` form |
+| `APP_URL` | no | `http://localhost:3000` | Frontend URL used for the sign-in button in invitation emails |
 
 ¹ Only used when the database contains no super admin — see
 [Super-admin seeding](#super-admin-seeding).
@@ -172,32 +178,42 @@ Tables: `admins` · `search_configs` · `jobs` · `search_runs`.
 On first boot, if no super admin exists, one is created from
 `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` / `SUPER_ADMIN_NAME`
 (password bcrypt-hashed). If a super admin already exists, **these values are
-ignored and nothing is re-seeded** — to change the password later, update the
-row directly in the database (or delete it to re-trigger seeding on next
-start).
+ignored and nothing is re-seeded** — change credentials from the Account page
+(email/name/password) once logged in.
+
+Additional users are created from the **Users** page (super admin only): the
+super admin enters the person's email, the backend generates a password and
+emails it to them as an HTML invitation (SMTP). Each user is either a
+**manager** (`can_manage_configs: true` — may create/edit search configs) or
+**view-only** (may only browse the job feed). Without SMTP configured, the
+generated password is returned in the API response instead so it can be
+shared manually.
 
 ## HTTP API reference
 
-All responses are JSON. CORS is open (any origin). Admin endpoints require
-`Authorization: Bearer <token>` (token from `/api/auth/login`, 24 h expiry).
+All responses are JSON. CORS is open (any origin). Everything except
+`/health` and login requires `Authorization: Bearer <token>` (token from
+`/api/auth/login`, 24 h expiry) — **the whole app is private**.
 
 ### Public
 
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Liveness check |
-| `GET` | `/api/jobs` | List jobs. Query: `q`, `location`, `work_mode`, `employment_type`, `source`, `limit`, `offset` |
-| `GET` | `/api/jobs/{id}` | Single job |
-| `GET` | `/api/sources` | `{ sources: [...], ai: bool }` — registered source names + AI availability |
+| `POST` | `/api/auth/login` | `{email, password}` → `{token, expires_at, admin}` |
 
-### Auth
+### Any authenticated user (Bearer)
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/auth/login` | `{email, password}` → `{token, expires_at, admin}` |
-| `GET` | `/api/auth/me` | Current admin (Bearer) |
+| `GET` | `/api/auth/me` | Current account (`admin` object incl. `can_manage_configs`) |
+| `GET` | `/api/jobs` | List jobs. Query: `q`, `location`, `work_mode`, `employment_type`, `source`, `limit`, `offset` |
+| `GET` | `/api/jobs/{id}` | Single job |
+| `GET` | `/api/sources` | `{ sources: [...], ai: bool }` — registered source names + AI availability |
+| `PUT` | `/api/admin/profile` | Change own email/name (`{email?, name?}`) → admin |
+| `PUT` | `/api/admin/profile/password` | Change own password (`{current_password, new_password}`) |
 
-### Admin (Bearer required, super-admin only)
+### Managers (`can_manage_configs: true`)
 
 | Method | Path | Description |
 |---|---|---|
@@ -212,6 +228,20 @@ All responses are JSON. CORS is open (any origin). Admin endpoints require
 | `GET` | `/api/admin/search-configs/{id}/runs` | Run history for one config |
 | `GET` | `/api/admin/runs` | Run history across all configs |
 | `POST` | `/api/admin/search-configs/enrich` | `{job_type}` → AI-generated profile (keywords, excludes, locations, schedule) |
+
+### Super admin only (user management)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/admin/users` | List all accounts |
+| `POST` | `/api/admin/users` | Create account `{email, name?, can_manage_configs}` — generates a password and emails it (HTML); response `{admin, emailed, password?, message}` (`password` only when the email could not be sent) |
+| `GET` | `/api/admin/users/{id}` | One account |
+| `PUT` | `/api/admin/users/{id}` | Update `{email?, name?, can_manage_configs?}` |
+| `DELETE` | `/api/admin/users/{id}` | Delete (self and last super admin are blocked) |
+| `POST` | `/api/admin/users/{id}/reset-password` | Generate + email a fresh password → same response shape as create |
+
+Guards use fresh DB state per request, so permission changes or deletions
+take effect immediately even while an old JWT is still valid.
 
 ## Scraping sources (Apify)
 
