@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"qx-scraper/internal/auth"
 	"qx-scraper/internal/store"
@@ -72,6 +73,89 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writeJSON(w, http.StatusOK, admin)
+}
+
+/* ---------------- account self-service ---------------- */
+
+type updateProfileRequest struct {
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+
+// handleUpdateProfile lets any logged-in user change their own email/name.
+func (s *Server) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.ClaimsFrom(r.Context())
+	if !ok {
+		s.writeError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+	var req updateProfileRequest
+	if err := s.decode(r, &req); err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	email := strings.TrimSpace(strings.ToLower(req.Email))
+	if email != "" && !emailRe.MatchString(email) {
+		s.writeError(w, http.StatusBadRequest, "invalid email address")
+		return
+	}
+
+	admin, err := s.store.UpdateAdminProfile(r.Context(), claims.AdminID, email, strings.TrimSpace(req.Name))
+	if err == store.ErrEmailTaken {
+		s.writeError(w, http.StatusConflict, "an account with this email already exists")
+		return
+	}
+	if err != nil {
+		s.writeError(w, errStatus(err), "account not found")
+		return
+	}
+	s.writeJSON(w, http.StatusOK, admin)
+}
+
+type changePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// handleChangePassword lets any logged-in user change their own password
+// (current password required). Existing tokens stay valid until expiry.
+func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	claims, ok := auth.ClaimsFrom(r.Context())
+	if !ok {
+		s.writeError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+	var req changePasswordRequest
+	if err := s.decode(r, &req); err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if len(req.NewPassword) < 8 {
+		s.writeError(w, http.StatusBadRequest, "new password must be at least 8 characters")
+		return
+	}
+
+	admin, err := s.store.GetAdminByID(r.Context(), claims.AdminID)
+	if err != nil {
+		s.writeError(w, http.StatusUnauthorized, "account not found")
+		return
+	}
+	if !auth.CheckPassword(admin.PasswordHash, req.CurrentPassword) {
+		s.writeError(w, http.StatusForbidden, "current password is incorrect")
+		return
+	}
+
+	hash, err := auth.HashPassword(req.NewPassword)
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, "password hashing failed")
+		return
+	}
+	if err := s.store.UpdateAdminPassword(r.Context(), claims.AdminID, hash); err != nil {
+		s.writeError(w, errStatus(err), "account not found")
+		return
+	}
+	s.log.Info("password changed", "email", admin.Email)
+	s.writeJSON(w, http.StatusOK, map[string]string{"status": "password updated"})
 }
 
 // handleHealth reports service and database status.

@@ -39,7 +39,7 @@ func SeedSuperAdmin(ctx context.Context, st *store.Store, cfg *config.Config, lo
 		return fmt.Errorf("hash super admin password: %w", err)
 	}
 
-	admin, err := st.CreateAdmin(ctx, cfg.SuperAdminEmail, hash, cfg.SuperAdminName, "super_admin")
+	admin, err := st.CreateAdmin(ctx, cfg.SuperAdminEmail, hash, cfg.SuperAdminName, "super_admin", true)
 	if err != nil {
 		return fmt.Errorf("create super admin: %w", err)
 	}

@@ -23,6 +23,7 @@ import (
 	"qx-scraper/internal/collector"
 	"qx-scraper/internal/config"
 	"qx-scraper/internal/db"
+	"qx-scraper/internal/mailer"
 	"qx-scraper/internal/pipeline"
 	"qx-scraper/internal/scheduler"
 	"qx-scraper/internal/seeder"
@@ -76,6 +77,12 @@ func run(log *slog.Logger) error {
 
 	pipe := pipeline.New(st, sources, aiClient, cfg.AIClassify, log, cfg.RunTimeout)
 	sched := scheduler.New(st, pipe, log, cfg.Timezone)
+	ml := mailer.New(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, log)
+	if ml.Enabled() {
+		log.Info("smtp configured", "host", cfg.SMTPHost, "port", cfg.SMTPPort)
+	} else {
+		log.Warn("SMTP_HOST not set — user invitations will not be emailed; credentials are returned in the API response instead")
+	}
 	if err := sched.Start(ctx); err != nil {
 		return err
 	}
@@ -89,7 +96,7 @@ func run(log *slog.Logger) error {
 	}()
 
 	// 5. HTTP server
-	serverAPI := api.NewServer(cfg, st, aiClient, sources, sched, log)
+	serverAPI := api.NewServer(cfg, st, aiClient, sources, sched, ml, log)
 	httpServer := &http.Server{
 		Addr:              cfg.ServerAddr,
 		Handler:           serverAPI.Router(),

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +41,18 @@ type Config struct {
 	ApifyInputs map[string]map[string]any // per-source input templates
 	MockSources bool
 	RunTimeout  time.Duration
+
+	// SMTP (outbound email: welcome mails with generated passwords).
+	// Empty SMTPHost disables email; created credentials are returned in the
+	// API response instead so the super admin can share them manually.
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	SMTPFrom     string
+
+	// Frontend base URL used in email buttons/links.
+	AppURL string
 }
 
 // NameValue is one APIFY_ACTORS entry: a source name and its actor ID.
@@ -68,6 +81,21 @@ func Load() (*Config, error) {
 		ApifyToken:         os.Getenv("APIFY_TOKEN"),
 		MockSources:        strings.EqualFold(os.Getenv("MOCK_SOURCES"), "true"),
 		RunTimeout:         30 * time.Minute,
+
+		SMTPHost:     strings.TrimSpace(os.Getenv("SMTP_HOST")),
+		SMTPUsername: os.Getenv("SMTP_USERNAME"),
+		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:     getenv("SMTP_FROM", "QX Scraper <no-reply@localhost>"),
+		SMTPPort:     587,
+		AppURL:       strings.TrimRight(getenv("APP_URL", "http://localhost:3000"), "/"),
+	}
+
+	if v := os.Getenv("SMTP_PORT"); v != "" {
+		p, err := strconv.Atoi(v)
+		if err != nil || p < 1 || p > 65535 {
+			return nil, fmt.Errorf("invalid SMTP_PORT %q", v)
+		}
+		cfg.SMTPPort = p
 	}
 
 	if v := os.Getenv("TZ"); v != "" {
