@@ -87,7 +87,7 @@ func Load() (*Config, error) {
 		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
 		SMTPFrom:     getenv("SMTP_FROM", "QX Scraper <no-reply@localhost>"),
 		SMTPPort:     587,
-		AppURL:       strings.TrimRight(getenv("APP_URL", "http://localhost:3000"), "/"),
+		AppURL:       strings.TrimRight(getenv("APP_URL", "https://qx-job-searcher.vercel.app"), "/"),
 	}
 
 	if v := os.Getenv("SMTP_PORT"); v != "" {
