@@ -1,8 +1,10 @@
 package mailer
 
 import (
+	"bufio"
 	"io"
 	"log/slog"
+	"net"
 	"strings"
 	"testing"
 )
@@ -83,5 +85,68 @@ func TestFromAddress(t *testing.T) {
 	plain := New("h", 587, "", "", "bare@example.com", m.log)
 	if got := plain.fromAddress(); got != "bare@example.com" {
 		t.Errorf("fromAddress() = %q, want bare@example.com", got)
+	}
+}
+
+func TestSendHTMLFallsBackToSecondPort(t *testing.T) {
+	primary, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	primaryPort := primary.Addr().(*net.TCPAddr).Port
+	if err := primary.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	fallback, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fallback.Close()
+	fallbackPort := fallback.Addr().(*net.TCPAddr).Port
+
+	go func() {
+		conn, err := fallback.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		reader := bufio.NewReader(conn)
+		_, _ = io.WriteString(conn, "220 localhost ESMTP\r\n")
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				return
+			}
+			switch {
+			case strings.HasPrefix(strings.ToUpper(line), "DATA"):
+				_, _ = io.WriteString(conn, "354 end with dot\r\n")
+				for {
+					line, err = reader.ReadString('\n')
+					if err != nil {
+						return
+					}
+					if line == ".\r\n" {
+						_, _ = io.WriteString(conn, "250 accepted\r\n")
+						break
+					}
+				}
+			default:
+				_, _ = io.WriteString(conn, "250 localhost\r\n")
+			}
+		}
+	}()
+
+	m := NewWithFallback(
+		"127.0.0.1",
+		primaryPort,
+		fallbackPort,
+		"",
+		"",
+		"sender@example.com",
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	if err := m.SendHTML("recipient@example.com", "test", "<p>hello</p>"); err != nil {
+		t.Fatalf("SendHTML() with fallback port %d failed: %v", fallbackPort, err)
 	}
 }

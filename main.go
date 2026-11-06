@@ -77,9 +77,9 @@ func run(log *slog.Logger) error {
 
 	pipe := pipeline.New(st, sources, aiClient, cfg.AIClassify, log, cfg.RunTimeout)
 	sched := scheduler.New(st, pipe, log, cfg.Timezone)
-	ml := mailer.New(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, log)
+	ml := mailer.NewWithFallback(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPFallbackPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, log)
 	if ml.Enabled() {
-		log.Info("smtp configured", "host", cfg.SMTPHost, "port", cfg.SMTPPort)
+		log.Info("smtp configured", "host", cfg.SMTPHost, "port", cfg.SMTPPort, "fallback_port", cfg.SMTPFallbackPort)
 	} else {
 		log.Warn("SMTP_HOST not set — user invitations will not be emailed; credentials are returned in the API response instead")
 	}
