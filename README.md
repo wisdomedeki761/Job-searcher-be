@@ -2,9 +2,10 @@
 
 Go backend for the QX-Scraper job-discovery platform. It stores search
 configurations defined by an admin, enriches them with AI (OpenRouter),
-scrapes job boards on a cron schedule (Apify actors), filters the raw posts
-against the config's keywords, and serves the resulting jobs over a JSON API
-consumed by the [Next.js frontend](../frontend/README.md).
+collects jobs on a cron schedule from public APIs/feeds, configured employer
+ATS boards, and optional Apify actors, filters the posts against each search
+config, and serves results over a JSON API consumed by the
+[Next.js frontend](../frontend/README.md).
 
 - **HTTP API:** [chi](https://github.com/go-chi/chi) v5
 - **Database:** PostgreSQL via [pgx/v5](https://github.com/jackc/pgx) (Neon or local)
@@ -44,8 +45,8 @@ consumed by the [Next.js frontend](../frontend/README.md).
 2. **Database** — pgx pool is opened and embedded SQL migrations run
    automatically on every start (`internal/db`, `migrations/`).
 3. **Seed** — the super admin is created *only if the database has none*.
-4. **Dependencies** — OpenRouter client, Apify source registry, pipeline,
-   and cron scheduler (re-loads every enabled search config).
+4. **Dependencies** — OpenRouter client, public and Apify source registry,
+   pipeline, and cron scheduler (re-loads every enabled search config).
 5. **HTTP server** — chi router on `SERVER_ADDR` (default `:8080`) until
    `SIGINT`/`SIGTERM`, then a graceful 15 s shutdown.
 
@@ -54,7 +55,7 @@ Data flow for a scheduled run:
 ```
 SearchConfig (DB, cron)
    └─▶ pipeline.Run
-         ├─▶ collector: for each enabled source → Apify actor run → raw posts
+         ├─▶ collector: public feeds/APIs and configured Apify actors → raw posts
          ├─▶ normalizer: per-source JSON → canonical job fields
          ├─▶ filter: keyword match / exclude keywords / employment & work-mode
          ├─▶ AI (optional): classify ambiguous posts, confidence ≥ 0.7
@@ -74,8 +75,8 @@ backend/
     ├── ai/                  # OpenRouter client: enrichment + classification
     ├── api/                 # chi router, handlers, JWT middleware, CORS
     ├── auth/                # password hashing, JWT issue/verify
-    ├── collector/           # source registry, Apify client, actor presets,
-    │                        #   input templating, self-healing coercion, normalizer
+    ├── collector/           # public job APIs/feeds, ATS and Apify clients,
+    │                        #   actor presets, normalization
     ├── config/              # env/.env loader + validation
     ├── db/                  # pgx pool + migration runner
     ├── model/               # shared structs (Job, SearchConfig, SearchRun, …)
@@ -91,7 +92,7 @@ backend/
 |---|---|
 | **Go 1.27+** | `go.mod` declares `go 1.27` |
 | **PostgreSQL 14+** | local (`docker compose up -d`) or a hosted instance (e.g. Neon) |
-| **Apify token** | optional — without it, only the mock source is available |
+| **Apify token** | optional — public job APIs/feeds work without it |
 | **OpenRouter key** | optional — without it, AI enrichment/classification are disabled and the app runs on rules only |
 
 ## Quick start
@@ -146,6 +147,8 @@ automatically if present (`godotenv`). Copy `.env.example` → `.env` to start.
 | `APIFY_TOKEN` | no | — | Empty ⇒ no Apify sources (mock only, if enabled) |
 | `APIFY_ACTORS` | no | — | Comma-separated actors (see [below](#scraping-sources-apify)) |
 | `APIFY_INPUTS` | no | — | JSON override of actor input shapes (rarely needed) |
+| `GREENHOUSE_BOARDS` | no | — | Optional comma-separated `display_name=board_token` entries |
+| `LEVER_SITES` | no | — | Optional comma-separated `display_name=site_name` entries |
 | `MOCK_SOURCES` | no | `false` | `true` ⇒ register a local mock source for dev |
 | `TZ` | no | `UTC` | IANA timezone used to interpret cron expressions |
 | `RUN_TIMEOUT` | no | `30m` | Max duration of one run before cancellation |
@@ -244,6 +247,48 @@ Guards use fresh DB state per request, so permission changes or deletions
 take effect immediately even while an old JWT is still valid.
 
 ## Scraping sources (Apify)
+
+### Public job sources
+
+The following no-key sources are registered automatically and appear in
+`GET /api/sources`:
+
+| Source name | Source |
+|---|---|
+| `arbeitnow` | Arbeitnow's European job-board API |
+| `arbeitnow-uk` | Arbeitnow's UK job-board API |
+| `jobicy` | Jobicy public jobs API |
+| `himalayas` | Himalayas remote jobs API |
+| `remoteok` | Remote OK jobs API |
+| `weworkremotely` | We Work Remotely RSS feed |
+| `remotive` | Remotive RSS feed |
+
+Search configurations can select these sources like Apify sources. An empty
+source list runs every registered source, so select specific sources to limit
+requests. API pagination is bounded per run to avoid unbounded external calls.
+
+Job-board sources require source attribution and original listing links. In
+particular, Jobicy and Remote OK require attribution/linking, and Himalayas
+requires a visible source link and prohibits redistributing its listings to
+other job boards. See each provider's current terms before publishing or
+redistributing listings.
+
+### Employer ATS sources
+
+Greenhouse and Lever expose public postings per employer board/site; they are
+not global job-search APIs. Configure the employer board identifiers to add
+them to the source registry:
+
+```dotenv
+GREENHOUSE_BOARDS=acme=acme-board-token
+LEVER_SITES=acme=acme-site
+```
+
+The left side is used as the company display name and source-name suffix.
+Multiple entries are comma-separated. The public postings endpoints do not
+need API keys.
+
+### Apify sources
 
 A "source" is one Apify actor. Configure them with `APIFY_ACTORS`, two forms
 accepted (comma-separated, `/` or `~` actor-ID separators both work):

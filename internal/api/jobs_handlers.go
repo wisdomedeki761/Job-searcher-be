@@ -12,13 +12,14 @@ import (
 )
 
 // handleListJobs lists recent jobs with optional filters:
-// q, location, work_mode, employment_type, source, since, limit, offset.
+// q, location, job_type, work_mode, employment_type, source, since, limit, offset.
 func (s *Server) handleListJobs(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
 	filter := model.JobFilter{
 		Query:         q.Get("q"),
 		Location:      q.Get("location"),
+		JobType:       q.Get("job_type"),
 		WorkMode:      q.Get("work_mode"),
 		EmploymentTyp: q.Get("employment_type"),
 		Source:        q.Get("source"),
@@ -58,6 +59,19 @@ func (s *Server) handleListJobs(w http.ResponseWriter, r *http.Request) {
 		jobs = []model.Job{}
 	}
 	s.writeJSON(w, http.StatusOK, jobs)
+}
+
+// handleListJobTypes returns configured job headings for the feed filter.
+func (s *Server) handleListJobTypes(w http.ResponseWriter, r *http.Request) {
+	jobTypes, err := s.store.ListJobTypes(r.Context())
+	if err != nil {
+		s.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if jobTypes == nil {
+		jobTypes = []string{}
+	}
+	s.writeJSON(w, http.StatusOK, jobTypes)
 }
 
 // handleGetJob fetches one job by ID.
