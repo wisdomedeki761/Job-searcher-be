@@ -28,11 +28,13 @@ func TestBuildRegistryIncludesPublicAndConfiguredATSources(t *testing.T) {
 }
 
 func TestSearchPublicSources(t *testing.T) {
+	jobicyRequests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasPrefix(r.URL.Path, "/arbeitnow"):
-			_, _ = fmt.Fprint(w, `{"data":[{"slug":"dev-1","company_name":"Acme","title":"Developer","description":"Role","remote":true,"url":"https://arbeitnow.test/jobs/dev-1","created_at":"2026-11-06T06:00:00Z","location":"Remote","job_types":["Full-time"]}]}`)
+			_, _ = fmt.Fprint(w, `{"data":[{"slug":"dev-1","company_name":"Acme","title":"Developer","description":"Role","remote":true,"url":"https://arbeitnow.test/jobs/dev-1","created_at":1793944800,"location":"Remote","job_types":["Full-time"]}]}`)
 		case r.URL.Path == "/jobicy":
+			jobicyRequests++
 			_, _ = fmt.Fprint(w, `{"nextCursor":null,"jobs":[{"id":123,"url":"https://jobicy.test/jobs/123","jobTitle":"Designer","companyName":"Acme","jobGeo":"Worldwide","jobType":["Full Time"],"jobDescription":"Role","pubDate":"2026-11-06T06:00:00Z"}]}`)
 		case r.URL.Path == "/himalayas/search":
 			_, _ = fmt.Fprint(w, `{"jobs":[{"guid":"g-1","title":"Engineer","companyName":"Acme","locationRestrictions":["United States"],"employmentType":"Full Time","description":"Role","applicationLink":"https://apply.test/1","pubDate":1793944800,"slug":"engineer","companySlug":"acme"}]}`)
@@ -112,6 +114,53 @@ func TestSearchPublicSources(t *testing.T) {
 				t.Fatalf("got %d posts, want 1", count)
 			}
 		})
+	}
+	if jobicyRequests != 1 {
+		t.Errorf("Jobicy made %d requests, want one", jobicyRequests)
+	}
+}
+
+func TestSearchJobicyOmitsInvalidLongTag(t *testing.T) {
+	var tagPresent bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tagPresent = r.URL.Query().Has("tag")
+		_, _ = fmt.Fprint(w, `{"nextCursor":null,"jobs":[]}`)
+	}))
+	defer server.Close()
+
+	old := jobicyBaseURL
+	jobicyBaseURL = server.URL
+	t.Cleanup(func() { jobicyBaseURL = old })
+
+	_, err := searchJobicy(context.Background(), SearchRequest{Keywords: []string{"customer call representative"}})
+	if err != nil {
+		t.Fatalf("searchJobicy() error = %v", err)
+	}
+	if tagPresent {
+		t.Fatal("Jobicy request included a tag longer than 20 characters")
+	}
+}
+
+func TestSearchArbeitnowAcceptsStringAndNumericCreatedAt(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprint(w, `{"data":[
+			{"slug":"numeric","company_name":"Acme","title":"Numeric date","url":"https://arbeitnow.test/1","created_at":1793944800},
+			{"slug":"string","company_name":"Acme","title":"String date","url":"https://arbeitnow.test/2","created_at":"2026-11-06T06:00:00Z"}
+		]}`)
+	}))
+	defer server.Close()
+
+	posts, err := searchArbeitnow(context.Background(), SearchRequest{}, server.URL, "arbeitnow")
+	if err != nil {
+		t.Fatalf("searchArbeitnow() error = %v", err)
+	}
+	if len(posts) != 2 {
+		t.Fatalf("got %d posts, want 2", len(posts))
+	}
+	for _, post := range posts {
+		if post.PostedAt == nil {
+			t.Errorf("post %q has no parsed posted timestamp", post.SourcePostID)
+		}
 	}
 }
 

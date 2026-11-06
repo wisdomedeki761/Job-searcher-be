@@ -16,6 +16,25 @@ import (
 	"qx-scraper/internal/model"
 )
 
+type flexibleTimestamp string
+
+func (t *flexibleTimestamp) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*t = ""
+		return nil
+	}
+	var value string
+	if len(data) > 0 && data[0] == '"' {
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		*t = flexibleTimestamp(value)
+		return nil
+	}
+	*t = flexibleTimestamp(string(data))
+	return nil
+}
+
 var (
 	arbeitnowBaseURL   = "https://www.arbeitnow.com/api/job-board-api"
 	arbeitnowUKBaseURL = "https://www.arbeitnow.co.uk/api/job-board-api"
@@ -118,15 +137,15 @@ func searchArbeitnow(ctx context.Context, req SearchRequest, baseURL, source str
 		u.RawQuery = q.Encode()
 		var response struct {
 			Data []struct {
-				Slug        string   `json:"slug"`
-				Company     string   `json:"company_name"`
-				Title       string   `json:"title"`
-				Description string   `json:"description"`
-				Remote      bool     `json:"remote"`
-				URL         string   `json:"url"`
-				CreatedAt   string   `json:"created_at"`
-				Location    string   `json:"location"`
-				JobTypes    []string `json:"job_types"`
+				Slug        string            `json:"slug"`
+				Company     string            `json:"company_name"`
+				Title       string            `json:"title"`
+				Description string            `json:"description"`
+				Remote      bool              `json:"remote"`
+				URL         string            `json:"url"`
+				CreatedAt   flexibleTimestamp `json:"created_at"`
+				Location    string            `json:"location"`
+				JobTypes    []string          `json:"job_types"`
 			} `json:"data"`
 			Links struct {
 				Next string `json:"next"`
@@ -136,7 +155,7 @@ func searchArbeitnow(ctx context.Context, req SearchRequest, baseURL, source str
 			return nil, fmt.Errorf("source %q: %w", source, err)
 		}
 		for _, job := range response.Data {
-			posted := parseSourceTime(job.CreatedAt)
+			posted := parseSourceTime(string(job.CreatedAt))
 			posts = append(posts, model.RawPost{
 				Source: source, SourcePostID: job.Slug, SourceURL: job.URL,
 				JobTitle: job.Title, CompanyName: job.Company, Location: job.Location,
@@ -172,8 +191,9 @@ func searchJobicy(ctx context.Context, req SearchRequest) ([]model.RawPost, erro
 			}
 			q := u.Query()
 			q.Set("count", "100")
-			if strings.TrimSpace(keyword) != "" {
-				q.Set("tag", keyword)
+			tag := strings.TrimSpace(keyword)
+			if len([]rune(tag)) >= 3 && len([]rune(tag)) <= 20 {
+				q.Set("tag", tag)
 			}
 			if cursor != "" {
 				q.Set("cursor", cursor)

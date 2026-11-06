@@ -348,8 +348,14 @@ func TestLinkedInInputOneURLEach(t *testing.T) {
 		t.Errorf("limitPerSource = %v, want 50", in["limitPerSource"])
 	}
 	// 24h lookback → last-24h date filter
-	if in["datePosted"] != "r86400" {
-		t.Errorf("datePosted = %v, want r86400 (24h)", in["datePosted"])
+	if in["datePosted"] != "past24Hours" {
+		t.Errorf("datePosted = %v, want past24Hours (24h)", in["datePosted"])
+	}
+	in = linkedinInput(SearchRequest{
+		Keywords: []string{"support"}, Lookback: 3 * 24 * time.Hour,
+	})
+	if in["datePosted"] != "pastWeek" {
+		t.Errorf("datePosted = %v, want pastWeek (3d)", in["datePosted"])
 	}
 
 	// No locations → no location param; >7d lookback → coarser filter.
@@ -360,8 +366,8 @@ func TestLinkedInInputOneURLEach(t *testing.T) {
 	if urls[0] != "https://www.linkedin.com/jobs/search/?keywords=figma+designer" {
 		t.Errorf("no-location URL = %q", urls[0])
 	}
-	if in["datePosted"] != "r2592000" {
-		t.Errorf("datePosted = %v, want r2592000 (30d)", in["datePosted"])
+	if in["datePosted"] != "pastMonth" {
+		t.Errorf("datePosted = %v, want pastMonth (30d)", in["datePosted"])
 	}
 }
 
