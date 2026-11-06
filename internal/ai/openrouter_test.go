@@ -102,7 +102,7 @@ func TestChatJSONRetriesRateLimit(t *testing.T) {
 func TestEnrichJobTypeSanitizesOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(completionResponse(
-			`{"keywords":["Golang Developer","golang developer"," Go "],"exclude_keywords":[],"locations":[],
+			`{"job_type":"Golang Developer","keywords":["Golang Developer","golang developer"," Go "],"exclude_keywords":[],"locations":[],
 			  "employment_type":"full_time","work_mode":"remote","sources":[],"lookback_hours":999,
 			  "suggested_cron":"bogus"}`)))
 	}))
@@ -112,7 +112,7 @@ func TestEnrichJobTypeSanitizesOutput(t *testing.T) {
 	openRouterURL = srv.URL
 	defer func() { openRouterURL = old }()
 
-	p, err := testClient().EnrichJobType(context.Background(), "Golang Developer", []string{"mock"})
+	p, err := testClient().EnrichJobType(context.Background(), "go code guy", []string{"mock"})
 	if err != nil {
 		t.Fatalf("EnrichJobType() error = %v", err)
 	}
@@ -126,6 +126,9 @@ func TestEnrichJobTypeSanitizesOutput(t *testing.T) {
 	}
 	if p.Keywords[2] != "golang" {
 		t.Errorf("bare tech variant missing: %v", p.Keywords)
+	}
+	if p.JobType != "Golang Developer" {
+		t.Errorf("job_type = %q, want the polished AI heading", p.JobType)
 	}
 	if p.LookbackHours != 24 {
 		t.Errorf("lookback_hours = %d, want 24 (out-of-range value reset)", p.LookbackHours)

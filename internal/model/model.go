@@ -117,6 +117,7 @@ type Classification struct {
 type JobFilter struct {
 	Query         string
 	Location      string
+	JobType       string
 	WorkMode      string
 	EmploymentTyp string
 	Source        string

@@ -184,3 +184,29 @@ func TestLoadInvalidSMTPFallbackPort(t *testing.T) {
 		t.Fatal("Load() error = nil, want invalid SMTP_FALLBACK_PORT error")
 	}
 }
+
+func TestLoadEmployerATSConfigs(t *testing.T) {
+	loadTestEnv(t)
+	t.Setenv("GREENHOUSE_BOARDS", "acme=acme-board, example=example-board")
+	t.Setenv("LEVER_SITES", "acme=acme-site")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(cfg.GreenhouseBoards) != 2 || cfg.GreenhouseBoards[0] != (NameValue{Name: "acme", Value: "acme-board"}) {
+		t.Errorf("GreenhouseBoards = %+v", cfg.GreenhouseBoards)
+	}
+	if len(cfg.LeverSites) != 1 || cfg.LeverSites[0] != (NameValue{Name: "acme", Value: "acme-site"}) {
+		t.Errorf("LeverSites = %+v", cfg.LeverSites)
+	}
+}
+
+func TestLoadInvalidEmployerATSConfig(t *testing.T) {
+	loadTestEnv(t)
+	t.Setenv("GREENHOUSE_BOARDS", "missing-board-name")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want invalid GREENHOUSE_BOARDS error")
+	}
+}

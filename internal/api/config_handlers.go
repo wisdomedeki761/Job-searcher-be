@@ -412,6 +412,9 @@ func emptyRuns(runs []model.SearchRun) []model.SearchRun {
 
 // applyProfile copies an AI-generated profile into the request.
 func applyProfile(req *configRequest, p *ai.Profile) {
+	if strings.TrimSpace(p.JobType) != "" {
+		req.JobType = p.JobType
+	}
 	req.Keywords = p.Keywords
 	req.ExcludeKeywords = p.ExcludeKeywords
 	req.Locations = p.Locations

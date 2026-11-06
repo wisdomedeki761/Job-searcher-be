@@ -58,6 +58,8 @@ type Registry struct {
 func BuildRegistry(cfg *config.Config) *Registry {
 	r := &Registry{sources: map[string]Source{}}
 
+	registerPublicSources(r, cfg)
+
 	for _, a := range cfg.ApifyActors {
 		tpl := cfg.ApifyInputs[a.Name]
 		var fn func(SearchRequest) map[string]any
@@ -142,15 +144,15 @@ func linkedinInput(req SearchRequest) map[string]any {
 		"urls":           urls,
 		"limitPerSource": 50,
 	}
-	// Date-posted window (f_TPR values) when a lookback is configured.
+	// Date-posted filter uses values accepted by this actor's input schema.
 	if h := int(req.Lookback.Hours()); h > 0 {
 		switch {
 		case h <= 24:
-			input["datePosted"] = "r86400"
+			input["datePosted"] = "past24Hours"
 		case h <= 24*7:
-			input["datePosted"] = "r604800"
+			input["datePosted"] = "pastWeek"
 		case h <= 24*30:
-			input["datePosted"] = "r2592000"
+			input["datePosted"] = "pastMonth"
 		}
 	}
 	return input

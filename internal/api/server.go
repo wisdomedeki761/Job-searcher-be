@@ -56,6 +56,7 @@ func (s *Server) Router() http.Handler {
 	r.Route("/api", func(r chi.Router) {
 		r.Use(auth.Middleware(s.cfg.JWTSecret, false))
 		r.Get("/jobs", s.handleListJobs)
+		r.Get("/job-types", s.handleListJobTypes)
 		r.Get("/jobs/{id}", s.handleGetJob)
 		r.Get("/sources", s.handleListSources)
 	})
