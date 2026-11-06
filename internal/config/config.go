@@ -45,11 +45,12 @@ type Config struct {
 	// SMTP (outbound email: welcome mails with generated passwords).
 	// Empty SMTPHost disables email; created credentials are returned in the
 	// API response instead so the super admin can share them manually.
-	SMTPHost     string
-	SMTPPort     int
-	SMTPUsername string
-	SMTPPassword string
-	SMTPFrom     string
+	SMTPHost         string
+	SMTPPort         int
+	SMTPFallbackPort int
+	SMTPUsername     string
+	SMTPPassword     string
+	SMTPFrom         string
 
 	// Frontend base URL used in email buttons/links.
 	AppURL string
@@ -82,12 +83,13 @@ func Load() (*Config, error) {
 		MockSources:        strings.EqualFold(os.Getenv("MOCK_SOURCES"), "true"),
 		RunTimeout:         30 * time.Minute,
 
-		SMTPHost:     strings.TrimSpace(os.Getenv("SMTP_HOST")),
-		SMTPUsername: os.Getenv("SMTP_USERNAME"),
-		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
-		SMTPFrom:     getenv("SMTP_FROM", "QX Scraper <no-reply@localhost>"),
-		SMTPPort:     587,
-		AppURL:       strings.TrimRight(getenv("APP_URL", "https://qx-job-searcher.vercel.app"), "/"),
+		SMTPHost:         strings.TrimSpace(os.Getenv("SMTP_HOST")),
+		SMTPUsername:     os.Getenv("SMTP_USERNAME"),
+		SMTPPassword:     os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:         getenv("SMTP_FROM", "QX Scraper <no-reply@localhost>"),
+		SMTPPort:         587,
+		SMTPFallbackPort: 465,
+		AppURL:           strings.TrimRight(getenv("APP_URL", "https://qx-job-searcher.vercel.app"), "/"),
 	}
 
 	if v := os.Getenv("SMTP_PORT"); v != "" {
@@ -96,6 +98,14 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("invalid SMTP_PORT %q", v)
 		}
 		cfg.SMTPPort = p
+	}
+
+	if v := os.Getenv("SMTP_FALLBACK_PORT"); v != "" {
+		p, err := strconv.Atoi(v)
+		if err != nil || p < 1 || p > 65535 {
+			return nil, fmt.Errorf("invalid SMTP_FALLBACK_PORT %q", v)
+		}
+		cfg.SMTPFallbackPort = p
 	}
 
 	if v := os.Getenv("TZ"); v != "" {

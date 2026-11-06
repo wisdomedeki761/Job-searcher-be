@@ -8,7 +8,9 @@
 package mailer
 
 import (
+	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"html"
 	"log/slog"
@@ -22,26 +24,33 @@ import (
 
 // Mailer sends HTML emails. A zero/disabled mailer (empty host) is a no-op.
 type Mailer struct {
-	host     string
-	port     int
-	username string
-	password string
-	from     string // display form, e.g. `QX Scraper <no-reply@example.com>`
-	log      *slog.Logger
+	host         string
+	port         int
+	fallbackPort int
+	username     string
+	password     string
+	from         string // display form, e.g. `QX Scraper <no-reply@example.com>`
+	log          *slog.Logger
 }
 
 // New creates a Mailer. host == "" disables sending (Enabled() == false).
 func New(host string, port int, username, password, from string, log *slog.Logger) *Mailer {
+	return NewWithFallback(host, port, 0, username, password, from, log)
+}
+
+// NewWithFallback creates a mailer that tries fallbackPort if port fails.
+func NewWithFallback(host string, port, fallbackPort int, username, password, from string, log *slog.Logger) *Mailer {
 	if port == 0 {
 		port = 587
 	}
 	return &Mailer{
-		host:     strings.TrimSpace(host),
-		port:     port,
-		username: username,
-		password: password,
-		from:     from,
-		log:      log,
+		host:         strings.TrimSpace(host),
+		port:         port,
+		fallbackPort: fallbackPort,
+		username:     username,
+		password:     password,
+		from:         from,
+		log:          log,
 	}
 }
 
@@ -63,7 +72,6 @@ func (m *Mailer) SendHTML(to, subject, htmlBody string) error {
 	}
 
 	fromAddr := m.fromAddress()
-	addr := net.JoinHostPort(m.host, strconv.Itoa(m.port))
 
 	var auth smtp.Auth
 	if m.username != "" {
@@ -81,36 +89,68 @@ func (m *Mailer) SendHTML(to, subject, htmlBody string) error {
 		htmlBody,
 	}, "\r\n")
 
-	var err error
-	if m.port == 465 {
-		err = m.sendImplicitTLS(addr, auth, fromAddr, to, []byte(msg))
-	} else {
-		err = smtp.SendMail(addr, auth, fromAddr, []string{to}, []byte(msg))
+	ports := []int{m.port}
+	if m.fallbackPort != 0 && m.fallbackPort != m.port {
+		ports = append(ports, m.fallbackPort)
 	}
-	if err != nil {
-		return fmt.Errorf("smtp send: %w", err)
+	var sendErrors []error
+	for i, port := range ports {
+		if err := m.send(port, auth, fromAddr, to, []byte(msg)); err != nil {
+			sendErrors = append(sendErrors, fmt.Errorf("port %d: %w", port, err))
+			if i < len(ports)-1 {
+				m.log.Warn("smtp send failed; trying fallback port", "port", port, "fallback_port", ports[i+1], "err", err)
+			}
+			continue
+		}
+		if port != m.port {
+			m.log.Info("smtp fallback port succeeded", "port", port)
+		}
+		m.log.Info("email sent", "to", to, "subject", subject)
+		return nil
 	}
-	m.log.Info("email sent", "to", to, "subject", subject)
-	return nil
+	return fmt.Errorf("smtp send failed: %w", errors.Join(sendErrors...))
 }
 
-func (m *Mailer) sendImplicitTLS(addr string, auth smtp.Auth, from string, to string, msg []byte) error {
-	dialer := &net.Dialer{Timeout: 10 * time.Second}
-	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
-		ServerName: m.host,
-		MinVersion: tls.VersionTLS12,
-	})
+func (m *Mailer) send(port int, auth smtp.Auth, from, to string, msg []byte) error {
+	addr := net.JoinHostPort(m.host, strconv.Itoa(port))
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return err
+	}
+	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		return err
+	}
+
+	if port == 465 {
+		tlsConn := tls.Client(conn, &tls.Config{
+			ServerName: m.host,
+			MinVersion: tls.VersionTLS12,
+		})
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			return err
+		}
+		conn = tlsConn
 	}
 
 	client, err := smtp.NewClient(conn, m.host)
 	if err != nil {
-		_ = conn.Close()
 		return err
 	}
 	defer client.Close()
 
+	if port != 465 {
+		if ok, _ := client.Extension("STARTTLS"); ok {
+			if err := client.StartTLS(&tls.Config{
+				ServerName: m.host,
+				MinVersion: tls.VersionTLS12,
+			}); err != nil {
+				return err
+			}
+		}
+	}
 	if auth != nil {
 		if err := client.Auth(auth); err != nil {
 			return err
@@ -133,7 +173,7 @@ func (m *Mailer) sendImplicitTLS(addr string, auth smtp.Auth, from string, to st
 	if err := writer.Close(); err != nil {
 		return err
 	}
-	return client.Quit()
+	return nil
 }
 
 // fromAddress extracts the bare address from `Name <addr>` for MAIL FROM.

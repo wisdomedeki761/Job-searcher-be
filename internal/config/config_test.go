@@ -14,6 +14,8 @@ func loadTestEnv(t *testing.T) {
 	t.Setenv("TZ", "")
 	t.Setenv("JWT_EXPIRY", "")
 	t.Setenv("RUN_TIMEOUT", "")
+	t.Setenv("SMTP_PORT", "")
+	t.Setenv("SMTP_FALLBACK_PORT", "")
 	t.Setenv("SUPER_ADMIN_EMAIL", "")
 	t.Setenv("SUPER_ADMIN_PASSWORD", "")
 	t.Setenv("OPENROUTER_API_KEY", "")
@@ -148,10 +150,37 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.ServerAddr != ":8080" {
 		t.Errorf("ServerAddr = %q, want :8080", cfg.ServerAddr)
 	}
+	if cfg.SMTPPort != 587 || cfg.SMTPFallbackPort != 465 {
+		t.Errorf("SMTP ports = %d/%d, want 587/465", cfg.SMTPPort, cfg.SMTPFallbackPort)
+	}
 	if cfg.Timezone != time.UTC {
 		t.Errorf("Timezone = %v, want UTC", cfg.Timezone)
 	}
+
 	if len(cfg.ApifyActors) != 0 {
 		t.Errorf("ApifyActors = %v, want empty", cfg.ApifyActors)
+	}
+}
+
+func TestLoadSMTPPorts(t *testing.T) {
+	loadTestEnv(t)
+	t.Setenv("SMTP_PORT", "465")
+	t.Setenv("SMTP_FALLBACK_PORT", "587")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.SMTPPort != 465 || cfg.SMTPFallbackPort != 587 {
+		t.Errorf("SMTP ports = %d/%d, want 465/587", cfg.SMTPPort, cfg.SMTPFallbackPort)
+	}
+}
+
+func TestLoadInvalidSMTPFallbackPort(t *testing.T) {
+	loadTestEnv(t)
+	t.Setenv("SMTP_FALLBACK_PORT", "invalid")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want invalid SMTP_FALLBACK_PORT error")
 	}
 }
