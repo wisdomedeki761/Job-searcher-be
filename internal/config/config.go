@@ -36,11 +36,13 @@ type Config struct {
 	AIClassify       bool
 
 	// Scraping
-	ApifyToken  string
-	ApifyActors []NameValue               // name=actorId pairs
-	ApifyInputs map[string]map[string]any // per-source input templates
-	MockSources bool
-	RunTimeout  time.Duration
+	ApifyToken       string
+	ApifyActors      []NameValue               // name=actorId pairs
+	ApifyInputs      map[string]map[string]any // per-source input templates
+	GreenhouseBoards []NameValue               // name=boardToken pairs
+	LeverSites       []NameValue               // name=siteName pairs
+	MockSources      bool
+	RunTimeout       time.Duration
 
 	// SMTP (outbound email: welcome mails with generated passwords).
 	// Empty SMTPHost disables email; created credentials are returned in the
@@ -167,6 +169,14 @@ func Load() (*Config, error) {
 		}
 	}
 
+	var err error
+	if cfg.GreenhouseBoards, err = parseNameValues("GREENHOUSE_BOARDS", os.Getenv("GREENHOUSE_BOARDS")); err != nil {
+		return nil, err
+	}
+	if cfg.LeverSites, err = parseNameValues("LEVER_SITES", os.Getenv("LEVER_SITES")); err != nil {
+		return nil, err
+	}
+
 	// Required values
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
@@ -212,4 +222,22 @@ func splitCSV(s string) []string {
 		}
 	}
 	return out
+}
+
+func parseNameValues(key, value string) ([]NameValue, error) {
+	var out []NameValue
+	seen := map[string]bool{}
+	for _, entry := range splitCSV(value) {
+		name, value, ok := strings.Cut(entry, "=")
+		name, value = strings.TrimSpace(name), strings.TrimSpace(value)
+		if !ok || name == "" || value == "" {
+			return nil, fmt.Errorf("invalid %s entry %q, want name=value", key, entry)
+		}
+		if seen[name] {
+			return nil, fmt.Errorf("duplicate %s name %q", key, name)
+		}
+		seen[name] = true
+		out = append(out, NameValue{Name: name, Value: value})
+	}
+	return out, nil
 }
