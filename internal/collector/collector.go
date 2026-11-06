@@ -58,6 +58,8 @@ type Registry struct {
 func BuildRegistry(cfg *config.Config) *Registry {
 	r := &Registry{sources: map[string]Source{}}
 
+	registerPublicSources(r, cfg)
+
 	for _, a := range cfg.ApifyActors {
 		tpl := cfg.ApifyInputs[a.Name]
 		var fn func(SearchRequest) map[string]any
