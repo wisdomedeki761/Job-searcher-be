@@ -96,6 +96,13 @@ func (s *Store) ListJobs(ctx context.Context, f model.JobFilter) ([]model.Job, e
 	if f.Location != "" {
 		add("LOWER(location) LIKE $%d", "%"+strings.ToLower(f.Location)+"%")
 	}
+	if f.JobType != "" {
+		add(`EXISTS (
+			SELECT 1 FROM search_configs sc
+			WHERE sc.id = jobs.search_config_id
+			  AND LOWER(sc.job_type) = LOWER($%d)
+		)`, f.JobType)
+	}
 	if f.WorkMode != "" {
 		add("work_mode = $%d", f.WorkMode)
 	}
@@ -139,6 +146,30 @@ func (s *Store) ListJobs(ctx context.Context, f model.JobFilter) ([]model.Job, e
 			return nil, err
 		}
 		out = append(out, *j)
+	}
+	return out, rows.Err()
+}
+
+// ListJobTypes returns the configured job-type headings for the feed filter.
+func (s *Store) ListJobTypes(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT job_type
+		FROM search_configs
+		WHERE BTRIM(job_type) <> ''
+		GROUP BY job_type
+		ORDER BY LOWER(job_type), job_type`)
+	if err != nil {
+		return nil, fmt.Errorf("list job types: %w", err)
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var jobType string
+		if err := rows.Scan(&jobType); err != nil {
+			return nil, fmt.Errorf("scan job type: %w", err)
+		}
+		out = append(out, jobType)
 	}
 	return out, rows.Err()
 }

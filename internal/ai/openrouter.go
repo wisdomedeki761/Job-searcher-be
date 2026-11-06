@@ -57,6 +57,7 @@ func (c *Client) Enabled() bool { return c.apiKey != "" }
 
 // Profile is the AI-generated search profile for a job type.
 type Profile struct {
+	JobType         string   `json:"job_type"`
 	Keywords        []string `json:"keywords"`
 	ExcludeKeywords []string `json:"exclude_keywords"`
 	Locations       []string `json:"locations"`
@@ -75,6 +76,7 @@ func (c *Client) EnrichJobType(ctx context.Context, jobType string, availableSou
 	}
 
 	system := `You are a job-search configuration assistant. Given a job type, produce a JSON object with:
+- "job_type": a concise, polished heading for the search, improving the user's wording while preserving its intent. Use a standard role title, optionally with a key specialization; do not make it a sentence or add unsupported seniority.
 - "keywords": 10-20 lowercase search phrases. They are matched LITERALLY against job title + company + location + description: punctuation is ignored, but every word of the phrase must appear together. So:
   * Write phrases exactly as employers write them in real job ads (research-grade accuracy matters more than cleverness), e.g. "frontend developer".
   * Spelling/spacing variants do NOT match each other — add each as a SEPARATE keyword:
@@ -113,6 +115,10 @@ Respond with JSON only, no prose.`
 	p.ExcludeKeywords = dropExcludedConflicts(p.Keywords, p.ExcludeKeywords)
 	p.ExcludeKeywords = cleanList(p.ExcludeKeywords, 15)
 	p.Locations = cleanList(p.Locations, 10)
+	p.JobType = strings.TrimSpace(p.JobType)
+	if p.JobType == "" {
+		p.JobType = strings.TrimSpace(jobType)
+	}
 	if p.EmploymentType == "" {
 		p.EmploymentType = "any"
 	}
