@@ -8,6 +8,7 @@
 package mailer
 
 import (
+	"crypto/tls"
 	"fmt"
 	"html"
 	"log/slog"
@@ -16,6 +17,7 @@ import (
 	"net/smtp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Mailer sends HTML emails. A zero/disabled mailer (empty host) is a no-op.
@@ -79,11 +81,59 @@ func (m *Mailer) SendHTML(to, subject, htmlBody string) error {
 		htmlBody,
 	}, "\r\n")
 
-	if err := smtp.SendMail(addr, auth, fromAddr, []string{to}, []byte(msg)); err != nil {
+	var err error
+	if m.port == 465 {
+		err = m.sendImplicitTLS(addr, auth, fromAddr, to, []byte(msg))
+	} else {
+		err = smtp.SendMail(addr, auth, fromAddr, []string{to}, []byte(msg))
+	}
+	if err != nil {
 		return fmt.Errorf("smtp send: %w", err)
 	}
 	m.log.Info("email sent", "to", to, "subject", subject)
 	return nil
+}
+
+func (m *Mailer) sendImplicitTLS(addr string, auth smtp.Auth, from string, to string, msg []byte) error {
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
+		ServerName: m.host,
+		MinVersion: tls.VersionTLS12,
+	})
+	if err != nil {
+		return err
+	}
+
+	client, err := smtp.NewClient(conn, m.host)
+	if err != nil {
+		_ = conn.Close()
+		return err
+	}
+	defer client.Close()
+
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			return err
+		}
+	}
+	if err := client.Mail(from); err != nil {
+		return err
+	}
+	if err := client.Rcpt(to); err != nil {
+		return err
+	}
+	writer, err := client.Data()
+	if err != nil {
+		return err
+	}
+	if _, err := writer.Write(msg); err != nil {
+		_ = writer.Close()
+		return err
+	}
+	if err := writer.Close(); err != nil {
+		return err
+	}
+	return client.Quit()
 }
 
 // fromAddress extracts the bare address from `Name <addr>` for MAIL FROM.
